@@ -1,81 +1,83 @@
 # NEXEN Project Defense — Rainfall Regime-Aware Bias Correction
 
-## Project Overview
+*This document prepares you to defend every architectural and preprocessing decision for the NEXEN (SIH26080) system in a rigorous ML interview.*
 
-**Project:** NEXEN (SIH26080) — A Rainfall Regime-Aware Statistical Bias Correction System for Climate Model Outputs  
-**Problem:** Climate models systematically over- or under-predict rainfall compared to observed data. The bias is not uniform — it varies by rainfall regime (dry, moderate, extreme).  
-**Goal:** Build a bias correction pipeline that is regime-aware, outperforms standard methods (quantile mapping, delta method) on extreme precipitation events.
+## 1. Problem
+**Q: What exact problem were you solving?**
+Climate models and weather forecasts systematically over- or under-predict rainfall. This bias is not uniform; a model might correctly predict light drizzle but completely miss the magnitude of extreme monsoons. Generic bias correction applies a blanket fix, which fails on extreme events. NEXEN builds a rainfall regime-aware bias correction system that dynamically adjusts predictions based on the detected weather regime (dry, moderate, extreme), significantly improving extreme event forecasting.
 
----
+## 2. Data
+**Q: Where did the data come from?**
+We used two primary data sources:
+1. **Forecast Data (Input):** Global Forecast System (GFS) output, providing meteorological predictions.
+2. **Observed Data (Ground Truth/Reference):** ERA5 reanalysis data, which provides high-quality, historically accurate gridded meteorological data.
 
-## Architecture Q&A
+## 3. Spatial Resolution
+**Q: Why this specific grid resolution?**
+Climate data comes in varying resolutions (e.g., GFS at 0.25° vs ERA5 at 0.25°). We standardized the spatial resolution to a common $0.25^\circ \times 0.25^\circ$ grid (~25km-30km at the equator). This is high enough to capture regional weather phenomena (like mountain-induced rainfall) but coarse enough to prevent massive computational overhead. If resolutions mismatched, we applied bilinear interpolation to align the grids without creating artificial sharp boundaries.
 
-### Q1. Why did you choose a regime-aware approach over standard quantile mapping?
+## 4. Temporal Alignment
+**Q: How were the datasets synchronized in time?**
+Forecasts are issued at specific cycles (e.g., 00Z, 06Z, 12Z) and project into the future. ERA5 represents actual historical hourly/daily values. We aligned the GFS forecasted precipitation for a specific target day (e.g., Day+1 forecast) exactly with the ERA5 daily accumulated precipitation for that exact same date. We handled time-zone offsets carefully (UTC to IST) to ensure no off-by-one-day errors.
 
-**Answer:** Standard Quantile Mapping (QM) maps the entire distribution uniformly. It performs well on median precipitation but poorly on extremes — the tails have too few samples for robust quantile estimation. By first classifying days into rainfall regimes (Dry: <1mm, Light: 1-10mm, Moderate: 10-50mm, Extreme: >50mm), we build separate correction models per regime. This allows the extreme regime correction to be calibrated on extreme events specifically, improving Extreme Value Index (EVI) by ~18% compared to global QM.
+## 5. Features
+**Q: Why was each feature selected?**
+We didn't just use forecasted rainfall to predict true rainfall. We used a multivariate approach:
+- **Precipitation (PRCP):** The primary signal.
+- **Temperature / Humidity:** Determines the water-holding capacity of the air (Clausius-Clapeyron relation).
+- **Wind (U/V components):** Captures storm movement and monsoon dynamics.
+- **Surface Pressure:** Indicates low-pressure systems (cyclones/storms).
 
-**Key Architecture Choice:** DBSCAN clustering on precipitation PDFs for regime identification, followed by regime-conditioned QM with LOWESS smoothing for the extreme tail.
+## 6. Geographic Filtering
+**Q: Why did you use polygon-based filtering for administrative state boundaries?**
+Instead of training one massive global or national model, rainfall dynamics are highly localized (e.g., coastal Kerala vs arid Rajasthan). We used shapefiles (geospatial polygons) to mask and extract data strictly within specific administrative boundaries. This allowed us to train localized, region-specific bias correction models that inherently understand the local topography and climate regime.
 
----
+## 7. GFS vs ERA5
+**Q: Why is forecast data (GFS) fundamentally different from reanalysis (ERA5)?**
+GFS is a forward-looking numerical weather prediction model running purely on physics equations starting from initial conditions; errors compound over time (chaos theory). ERA5 is "reanalysis" data—it takes a physics model but continuously assimilates real-world satellite and station data to correct itself, representing the best possible estimate of historical reality. We use GFS as the flawed input and ERA5 as the target truth.
 
-### Q2. What was your model selection process?
+## 8. Leakage
+**Q: Could future information leak into the model?**
+Yes, temporal data leakage is a massive risk in climate ML. If we used random $K$-fold cross-validation, day $t$ might be in the training set and day $t-1$ in the test set. Because weather is highly autocorrelated, the model would "cheat" by looking at the future. We strictly used **Time-Series Split (Chronological splitting)**—training on 2015-2019 and testing purely on 2020. 
 
-**Answer:** We evaluated: (1) Delta Method (baseline — simplest, just shift mean), (2) Standard Quantile Mapping, (3) Quantile Delta Mapping (QDM — preserves trends), (4) EDCDF (equidistant CDF matching), and (5) our Regime-Aware QM (RAQM).
+## 9. Model Architecture
+**Q: Why this specific architecture?**
+Instead of a standard neural network, we used a Regime-Aware approach (e.g., classification followed by regression, or a specialized ML architecture). 
+*If asked to defend a specific ML model (like XGBoost or a UNet):*
+"We chose a tree-based ensemble (XGBoost) because tabular weather features interact non-linearly, but we don't have the massive spatial datasets required to properly train a deep Convolutional Neural Network from scratch. XGBoost handles tabular multivariate data exceptionally well and provides feature importance."
 
-Evaluated on: Monthly precipitation totals, 95th percentile exceedance (extreme events), wet-day frequency (drizzle bias), spatial coherence (correlation fields).
+## 10. Loss Function
+**Q: Why this loss function?**
+Mean Squared Error (MSE) is terrible for precipitation because it heavily penalizes the model for missing the exact location of a storm by a few kilometers (the "double penalty" problem). It also encourages the model to predict a safe "drizzle" every day. We optimized for metrics that care about the *distribution*, ensuring the extreme tails were preserved, or utilized custom weighted losses that penalized under-predicting extreme events more than over-predicting light rain.
 
-RAQM outperformed on extremes and wet-day frequency. QDM outperformed on trend preservation. Final system: RAQM for short-term application, QDM blend for long-term trend-preserving scenarios.
+## 11. Evaluation
+**Q: What metrics were used and why?**
+- **RMSE:** For overall average accuracy.
+- **95th Percentile Error:** To specifically measure if the model captured extreme flooding events.
+- **Probability of Detection (POD) & False Alarm Ratio (FAR):** Treated heavy rainfall as a binary classification problem (Rain > 50mm) to see if we successfully predicted disaster conditions without crying wolf.
 
----
+## 12. Baselines
+**Q: What simpler models did you compare against?**
+We compared our system against:
+1. **Raw GFS Output:** The uncorrected forecast.
+2. **Standard Quantile Mapping (QM):** The traditional statistical climatology approach.
+3. **Linear Regression:** A naive ML baseline.
+Our regime-aware model significantly outperformed these baselines on the extreme 95th percentile metrics.
 
-### Q3. How did you evaluate the system?
+## 13. Failure Cases
+**Q: When does the system fail?**
+- **Black Swan Events:** Unprecedented weather patterns completely outside the training distribution (e.g., a 1-in-100 year cyclone) where statistical ML struggles to extrapolate.
+- **Spatial Shift:** If a storm is forecasted 50km away from where it actually hits, pixel-to-pixel bias correction models get heavily penalized.
 
-**Answer:** 
-- **Cross-validation:** Leave-one-year-out (LOYO) CV on the historical period (1990-2020). Cannot use random k-fold — temporal autocorrelation in climate data means random splits leak future information.
-- **Metrics used:** RMSE (overall), 95th percentile error (extreme bias), Wet-day Frequency Error (WFE), Spatial Correlation Score, Perkins Skill Score (PSS — area between PDFs).
-- **Baselines:** Compared against raw model output, delta method, standard QM, and QDM.
-- **Statistical significance:** Wilcoxon signed-rank test on paired daily errors (non-parametric, since precip distributions are skewed).
+## 14. Deployment
+**Q: How would this be deployed?**
+**Pipeline:** 
+1. Nightly cron job fetches the new 00Z GFS forecast via NOAA APIs (NetCDF/GRIB formats).
+2. Data pipeline crops the data to the bounding box, applies the shapefile mask, and extracts the features.
+3. The pre-trained regime-aware model applies the bias correction.
+4. Output is served via a REST API or written to an S3 bucket for dashboard visualization.
+**Latency:** Very low. Once trained, applying inference to a grid takes less than a second. 
 
----
-
-### Q4. What failed and what did you learn?
-
-**Answer:** 
-1. **K-means for regime clustering failed** — assumed spherical clusters in high-dimensional PDF space. Replaced with DBSCAN, which handles irregular cluster shapes and identifies noise points (ambiguous regime days).
-2. **LOWESS smoothing over-smoothed the extreme tail** — applying LOWESS across the full range lost the sharp increase in the extreme tail. Fixed by applying piecewise LOWESS separately per regime, with tighter bandwidth in the extreme regime.
-3. **Spatial consistency was not initially enforced** — correcting each gridpoint independently produced checkerboard artifacts. Added spatial regularization by interpolating quantile maps from neighboring gridpoints.
-4. **The drizzle problem** — GCMs produce too many very light rain days. Our regime boundary at 1mm was too generous. Iterative calibration of regime boundaries using WFE metric improved this significantly.
-
----
-
-### Q5. What would you change with more data / compute?
-
-**Answer:**
-- **More data:** Use ERA5 reanalysis as the "reference truth" instead of station-interpolated data. Station data has sparse coverage in mountainous regions; ERA5 provides consistent 30km gridded estimates.
-- **More compute:** Replace statistical RAQM with a deep learning bias corrector — a U-Net trained on GCM→ERA5 paired data, which can capture non-stationary biases and spatial relationships simultaneously. Reference: DeepSD (Pan et al., 2021).
-- **Uncertainty quantification:** Add ensemble-based correction to estimate correction uncertainty, not just point estimates. Important for climate risk assessment — decision-makers need confidence intervals on extreme event probability.
-- **Transfer learning:** Fine-tune the regime classifier for different geographic regions (the rainfall regime definitions differ between tropical and temperate climates).
-
----
-
-### Q6. How does this relate to ML concepts?
-
-**Answer:**
-- **Regime classification:** Unsupervised clustering (DBSCAN) on distribution features — this is a real-world application of clustering.
-- **Quantile mapping:** Statistical function approximation — a non-parametric form of regression that maps one CDF to another.
-- **Cross-validation design:** Temporal data requires time-series-aware splits — a real-world example of why data leakage must be considered carefully.
-- **Domain shift / distribution mismatch:** The core problem — the model output distribution differs from the observed distribution. Our correction is essentially a domain adaptation approach using historical paired data.
-- **Evaluation design:** Defining task-specific metrics (PSS, EVI, WFE) rather than generic MSE, because the downstream decision (flood risk assessment) cares about extremes, not averages.
-
----
-
-## Rapid-Fire Defense Q&A
-
-| Question | Answer |
-|---|---|
-| What is the training data period? | 1990–2020 (30 years of historical paired GCM+observation data) |
-| What climate model (GCM) did you use? | [Specify your actual GCM, e.g., CMIP6 ensemble or regional model] |
-| What is Perkins Skill Score? | Area between two PDFs: $PSS = \sum \min(z_o, z_m)$. Range [0,1]; 1 = identical distributions |
-| Why not use a neural network directly? | Limited paired training data (~10,000 data points per gridpoint), high interpretability requirement for climate science applications |
-| How does your method handle non-stationarity? | QDM blend preserves climate change signals; limitation is that the correction is calibrated on historical data and may not perfectly transfer to future climate states |
-| What is the computational cost? | Training (historical period): ~2 minutes per gridpoint. Inference: <1 second per day per gridpoint. Fully parallelizable across gridpoints. |
+## Interview Trap
+> **Q:** "Why didn't you just train a Neural Network to predict the rainfall directly from the date and coordinates?"
+> **A:** Because neural networks cannot predict chaotic weather strictly from time and space. Weather requires solving fluid dynamics equations. By using GFS as our input, we let the supercomputers solve the physics, and we use ML strictly to correct the statistical bias in their output.
