@@ -1,53 +1,112 @@
 # Concurrency Basics
 
-## 1. Definition
-[Define the concept strictly and accurately in one or two sentences.]
+## 1. Concurrency vs Parallelism
+- **Concurrency**: multiple tasks in progress at the same time (interleaved execution).
+- **Parallelism**: multiple tasks running simultaneously (multi-core).
+- asyncio is concurrent but not parallel. multiprocessing is both.
 
-## 2. Intuition
-[Explain it as if to a peer, using an analogy or simple mental model.]
-
-## 3. Why it exists
-[What historical or practical problem did this solve? What was broken before?]
-
-## 4. Mechanics
-[How does it work under the hood? Step-by-step breakdown.]
-
-## 5. Complexity (Time & Space)
-- **Time Complexity:** [Justified analysis]
-- **Space Complexity:** [Justified analysis]
-
-## 6. Tiny worked example
-[A minimal numerical or trace example.]
-
-## 7. Code (Python, with type hints)
+## 2. Race Condition
+Outcome depends on order of thread/process execution.
 ```python
-# Provide clean, typed, idiomatic code
+# Thread 1: x = x + 1
+# Thread 2: x = x + 1
+# Both read x=5, both write 6 → lost update
 ```
 
-## 8. Common mistakes
-[What do candidates usually get wrong when implementing or explaining this?]
+## 3. Mutex (Mutual Exclusion Lock)
+Only one thread holds it at a time. Others block.
+```python
+lock = threading.Lock()
+with lock:         # acquire on enter, release on exit
+    shared_var += 1
+```
 
-## 9. 30-second interview answer
-[The elevator pitch version for a quick question.]
+## 4. Semaphore
+Allows N concurrent accesses (generalized mutex where N=1).
+```python
+sem = threading.Semaphore(3)   # max 3 concurrent threads
+with sem:
+    access_db()
+```
 
-## 10. 2-minute interview answer
-[The deep-dive version to lead the conversation.]
+## 5. Condition Variable
+Thread waits for a condition to become true.
+```python
+cond = threading.Condition()
+# Producer
+with cond:
+    queue.append(item); cond.notify()
+# Consumer
+with cond:
+    cond.wait_for(lambda: len(queue) > 0)
+    item = queue.pop()
+```
 
-## 11. Follow-ups
-[What will the interviewer ask next based on your 2-minute answer?]
+## 6. Deadlock
+Two threads each hold a lock the other needs.
+```python
+# Thread 1: lock_a.acquire(); lock_b.acquire()
+# Thread 2: lock_b.acquire(); lock_a.acquire()  → deadlock
+```
+Prevention: always acquire locks in the same order.
 
-## 12. Deeper questions
-[Hard theoretical questions for strong candidates.]
+## 7. Livelock
+Threads keep responding to each other without making progress (like two people dodging each other in a corridor).
 
-## 13. Related concepts
-[How does this connect to ML or other DSA concepts?]
+## 8. Starvation
+A thread is perpetually denied access to a resource because others keep acquiring it first. Fix: fair queuing (FIFO lock).
 
-## 14. When it breaks / Edge cases
-[When does this approach fail?]
+## 9. Python asyncio Concurrency Model
+Event loop + coroutines. `await` yields control back to event loop.
+```python
+async def main():
+    await asyncio.sleep(1)     # yields; loop can run other coroutines
+    result = await some_io()
+asyncio.run(main())
+```
 
-## 15. Comparison with alternative approaches
-[Trade-offs against similar structures/algorithms.]
+## 10. asyncio Primitives
+```python
+asyncio.Lock()        # async mutex
+asyncio.Semaphore(n)  # async semaphore
+asyncio.Event()       # set/wait
+asyncio.Queue()       # async producer-consumer
+```
 
----
-*Where this shows up in ML:* 
-[Brief connection to AI/ML context]
+## 11. Producer-Consumer Pattern
+```python
+q = asyncio.Queue()
+async def producer():
+    for i in range(5): await q.put(i); await asyncio.sleep(0.1)
+async def consumer():
+    while True:
+        item = await q.get(); process(item); q.task_done()
+```
+
+## 12. Atomic Operations in Python
+`list.append()`, `dict[k]=v` are GIL-atomic (single bytecode).
+`counter += 1` is NOT atomic (LOAD, ADD, STORE).
+Use `threading.Lock` or `queue.Queue` for safe sharing.
+
+## 13. Thread Pool Pattern
+```python
+from concurrent.futures import ThreadPoolExecutor
+with ThreadPoolExecutor(max_workers=10) as pool:
+    futures = [pool.submit(task, arg) for arg in args]
+    results = [f.result() for f in futures]
+```
+
+## 14. Common Concurrency Bugs
+| Bug | Cause | Fix |
+|-----|-------|-----|
+| Race condition | Unsynchronized access | Lock |
+| Deadlock | Circular lock acquisition | Lock ordering |
+| Livelock | Reactive but no progress | Random backoff |
+| Starvation | Unfair scheduling | Fair queue |
+| Memory visibility | CPU caching | Memory barriers / lock |
+
+## 15. Interview Tips
+- Draw thread execution timeline to illustrate race conditions.
+- Know difference: mutex vs semaphore vs condition variable.
+- Explain GIL → why multiprocessing for CPU, asyncio for I/O.
+- asyncio scales to 10k+ connections; threading saturates at ~100s.

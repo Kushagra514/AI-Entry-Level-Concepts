@@ -1,53 +1,96 @@
 # SQL vs NoSQL
 
-## 1. Definition
-[Define the concept strictly and accurately in one or two sentences.]
+## 1. SQL (Relational)
+Structured data, fixed schema, ACID guarantees, powerful query language.
+Examples: PostgreSQL, MySQL, SQLite, Oracle.
 
-## 2. Intuition
-[Explain it as if to a peer, using an analogy or simple mental model.]
+## 2. NoSQL Categories
+| Type | Example | Use Case |
+|------|---------|----------|
+| Document | MongoDB, CouchDB | JSON-like objects |
+| Key-Value | Redis, DynamoDB | Cache, session |
+| Column-family | Cassandra, HBase | Time-series, analytics |
+| Graph | Neo4j | Social networks, recommendations |
 
-## 3. Why it exists
-[What historical or practical problem did this solve? What was broken before?]
+## 3. CAP Theorem
+A distributed system can guarantee at most 2 of 3:
+- **Consistency**: every read gets the latest write.
+- **Availability**: every request gets a response (not necessarily latest).
+- **Partition Tolerance**: system works despite network partition.
 
-## 4. Mechanics
-[How does it work under the hood? Step-by-step breakdown.]
+Network partitions always happen → choose C or A during partition.
+- CP: MongoDB, HBase, ZooKeeper.
+- AP: Cassandra, DynamoDB, CouchDB.
 
-## 5. Complexity (Time & Space)
-- **Time Complexity:** [Justified analysis]
-- **Space Complexity:** [Justified analysis]
+## 4. PACELC
+Extends CAP: even without partition, tradeoff between Latency and Consistency.
 
-## 6. Tiny worked example
-[A minimal numerical or trace example.]
+## 5. When to Use SQL
+- Strong ACID requirements (banking, e-commerce orders)
+- Complex queries with JOINs
+- Data with clear relational structure
+- Reporting and analytics
 
-## 7. Code (Python, with type hints)
-```python
-# Provide clean, typed, idiomatic code
+## 6. When to Use NoSQL
+- Unstructured/semi-structured data
+- Horizontal scalability needed
+- High write throughput (Cassandra)
+- Simple access patterns (key lookups)
+- Schema evolves frequently
+
+## 7. MongoDB vs PostgreSQL
+```javascript
+// MongoDB — document query
+db.orders.find({ user_id: "u123", status: "shipped" })
+         .sort({ created_at: -1 }).limit(10)
+```
+```sql
+-- PostgreSQL — relational query
+SELECT * FROM orders WHERE user_id = 'u123' AND status = 'shipped'
+ORDER BY created_at DESC LIMIT 10;
 ```
 
-## 8. Common mistakes
-[What do candidates usually get wrong when implementing or explaining this?]
+## 8. Eventual Consistency
+Nodes may temporarily have different values, but will converge. DynamoDB, Cassandra default.
+Acceptable for: social media likes, product view counts, shopping cart.
 
-## 9. 30-second interview answer
-[The elevator pitch version for a quick question.]
+## 9. Strong Consistency
+All reads see the latest committed write. Required for: bank balances, inventory, seat booking.
 
-## 10. 2-minute interview answer
-[The deep-dive version to lead the conversation.]
+## 10. Sharding (Horizontal Partitioning)
+Split data across multiple nodes by shard key.
+- Range sharding: users A-M → shard1, N-Z → shard2.
+- Hash sharding: shard = hash(key) % N (even distribution).
+- Problem: cross-shard JOINs are expensive.
 
-## 11. Follow-ups
-[What will the interviewer ask next based on your 2-minute answer?]
+## 11. Replication
+Master-slave: writes to master, reads from slaves. Lag between master and slave.
+Multi-master: writes to any node; conflict resolution needed.
 
-## 12. Deeper questions
-[Hard theoretical questions for strong candidates.]
+## 12. Redis Use Cases
+```python
+import redis
+r = redis.Redis()
+r.set('session:abc', user_json, ex=3600)   # TTL 1hr
+r.incr('page_views:home')                   # atomic counter
+r.lpush('queue:emails', email_json)         # message queue
+r.zadd('leaderboard', {user: score})        # sorted set
+```
 
-## 13. Related concepts
-[How does this connect to ML or other DSA concepts?]
+## 13. Cassandra Data Model
+Design tables around query patterns (not normalization).
+Wide rows: partition key + clustering columns.
+No JOINs; denormalization is intentional.
 
-## 14. When it breaks / Edge cases
-[When does this approach fail?]
+## 14. Common Interview Scenario
+"Design a social feed." → Use Cassandra for posts (high write, time-series) + Redis for feed cache + PostgreSQL for user profiles.
 
-## 15. Comparison with alternative approaches
-[Trade-offs against similar structures/algorithms.]
-
----
-*Where this shows up in ML:* 
-[Brief connection to AI/ML context]
+## 15. Decision Framework
+```
+Transactional + relational → PostgreSQL
+Cache/session → Redis
+Flexible schema, JSON → MongoDB
+High-write time-series → Cassandra
+Graph traversals → Neo4j
+Full-text search → Elasticsearch
+```

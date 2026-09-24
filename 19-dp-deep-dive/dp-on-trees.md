@@ -1,53 +1,111 @@
 # DP on Trees
 
-## 1. Definition
-[Define the concept strictly and accurately in one or two sentences.]
+## 1. Core Idea
+Post-order DFS: compute child subtree answers first, then combine at parent.
+State: dp[node] = some optimal value for the subtree rooted at node.
 
-## 2. Intuition
-[Explain it as if to a peer, using an analogy or simple mental model.]
-
-## 3. Why it exists
-[What historical or practical problem did this solve? What was broken before?]
-
-## 4. Mechanics
-[How does it work under the hood? Step-by-step breakdown.]
-
-## 5. Complexity (Time & Space)
-- **Time Complexity:** [Justified analysis]
-- **Space Complexity:** [Justified analysis]
-
-## 6. Tiny worked example
-[A minimal numerical or trace example.]
-
-## 7. Code (Python, with type hints)
+## 2. Template
 ```python
-# Provide clean, typed, idiomatic code
+def dfs(node, parent):
+    result = base_case
+    for child in graph[node]:
+        if child == parent: continue
+        child_val = dfs(child, node)
+        result = combine(result, child_val)
+    return result
 ```
 
-## 8. Common mistakes
-[What do candidates usually get wrong when implementing or explaining this?]
+## 3. Tree Diameter (LC 543)
+At each node, diameter passing through it = left_depth + right_depth.
+```python
+def diameterOfBinaryTree(root):
+    ans = [0]
+    def depth(node):
+        if not node: return 0
+        L, R = depth(node.left), depth(node.right)
+        ans[0] = max(ans[0], L + R)
+        return 1 + max(L, R)
+    depth(root)
+    return ans[0]
+```
 
-## 9. 30-second interview answer
-[The elevator pitch version for a quick question.]
+## 4. Max Path Sum (LC 124)
+Path can start/end anywhere. At each node, gain = node.val + max(0,left) + max(0,right).
+```python
+def maxPathSum(root):
+    best = [float('-inf')]
+    def dp(node):
+        if not node: return 0
+        l = max(dp(node.left), 0)
+        r = max(dp(node.right), 0)
+        best[0] = max(best[0], node.val + l + r)
+        return node.val + max(l, r)   # only one branch for parent
+    dp(root)
+    return best[0]
+```
 
-## 10. 2-minute interview answer
-[The deep-dive version to lead the conversation.]
+## 5. House Robber III (LC 337)
+State: (rob_root, skip_root). Can't rob adjacent nodes.
+```python
+def rob(root):
+    def dp(node):
+        if not node: return (0, 0)  # (rob, skip)
+        lr, ls = dp(node.left)
+        rr, rs = dp(node.right)
+        rob_cur = node.val + ls + rs
+        skip_cur = max(lr, ls) + max(rr, rs)
+        return (rob_cur, skip_cur)
+    return max(dp(root))
+```
 
-## 11. Follow-ups
-[What will the interviewer ask next based on your 2-minute answer?]
+## 6. Binary Tree Cameras (LC 968)
+State per node: 0=needs cover, 1=has camera, 2=covered no camera.
 
-## 12. Deeper questions
-[Hard theoretical questions for strong candidates.]
+## 7. Rerooting Technique
+Compute dp[root] in O(N), then re-root answers for all nodes in second DFS pass.
+Useful when answer for each node as root is needed.
 
-## 13. Related concepts
-[How does this connect to ML or other DSA concepts?]
+## 8. DP on General Trees (N-ary)
+```python
+def tree_dp(node, par, graph, vals):
+    dp = [0] * 2   # dp[0]=skip, dp[1]=take
+    dp[1] = vals[node]
+    for child in graph[node]:
+        if child == par:
+            continue
+        c = tree_dp(child, node, graph, vals)
+        dp[0] += max(c)
+        dp[1] += c[0]   # if we take node, children must be skipped
+    return dp
+```
 
-## 14. When it breaks / Edge cases
-[When does this approach fail?]
+## 9. Counting Paths / Subtree Sizes
+sz[u] = 1 + sum(sz[child]). Used in centroid decomposition, LCA preprocessing.
 
-## 15. Comparison with alternative approaches
-[Trade-offs against similar structures/algorithms.]
+## 10. Lowest Common Ancestor (Binary Lifting)
+Precompute anc[node][j] = 2^j-th ancestor. dp[node][j] = dp[dp[node][j-1]][j-1].
 
----
-*Where this shows up in ML:* 
-[Brief connection to AI/ML context]
+## 11. DP on Tree + Knapsack
+"Select k nodes from subtree" — dp[node][k] = max value with k nodes chosen.
+Time: O(N²) with careful merging.
+
+## 12. Interview Pattern
+- Identify: what info does parent need from child?
+- Return tuple from DFS when multiple states needed.
+- Track global answer in a nonlocal/list variable.
+
+## 13. Common Mistakes
+- Forgetting to block parent edge in undirected tree DFS.
+- Returning wrong value up the recursion (confusing subtree answer vs path answer).
+
+## 14. Complexity
+O(N) time and space for most tree DP (single pass DFS).
+
+## 15. Key Problems List
+| Problem | State |
+|---------|-------|
+| Diameter | depth from each node |
+| Max Path Sum | max one-sided gain |
+| House Robber III | (rob, skip) pair |
+| Tree Cameras | 3-state coverage |
+| Max Independent Set | (include, exclude) |

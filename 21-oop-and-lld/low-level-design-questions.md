@@ -1,53 +1,97 @@
-# LLD Question Approach
+# Low-Level Design (LLD) Interview Questions
 
-## 1. Definition
-[Define the concept strictly and accurately in one or two sentences.]
+## 1. What Interviewers Look For
+- Identify entities and their relationships
+- Apply OOP + SOLID principles
+- Handle edge cases and concurrency
+- Extensible, clean class design
 
-## 2. Intuition
-[Explain it as if to a peer, using an analogy or simple mental model.]
+## 2. General Approach (5 Steps)
+1. Clarify requirements & constraints
+2. Identify core entities (nouns → classes)
+3. Define relationships (has-a, is-a)
+4. Define methods and interactions
+5. Handle edge cases, threading, storage
 
-## 3. Why it exists
-[What historical or practical problem did this solve? What was broken before?]
-
-## 4. Mechanics
-[How does it work under the hood? Step-by-step breakdown.]
-
-## 5. Complexity (Time & Space)
-- **Time Complexity:** [Justified analysis]
-- **Space Complexity:** [Justified analysis]
-
-## 6. Tiny worked example
-[A minimal numerical or trace example.]
-
-## 7. Code (Python, with type hints)
-```python
-# Provide clean, typed, idiomatic code
+## 3. Parking Lot — Entities
+```
+ParkingLot (floors, entry/exit points)
+ParkingFloor (spots[])
+ParkingSpot (type: compact/large/handicapped, isOccupied)
+Vehicle (licensePlate, type)
+Ticket (entryTime, spot)
+ParkingAttendant
 ```
 
-## 8. Common mistakes
-[What do candidates usually get wrong when implementing or explaining this?]
+## 4. Parking Lot — Key Methods
+```python
+class ParkingLot:
+    def park(self, vehicle) -> Ticket: ...
+    def unpark(self, ticket) -> float: ...  # return fee
+    def find_spot(self, vehicle_type) -> ParkingSpot: ...
+```
 
-## 9. 30-second interview answer
-[The elevator pitch version for a quick question.]
+## 5. Library System — Entities
+```
+Library, Book (ISBN, copies), BookItem (physical copy), Member, Librarian
+BookReservation, BookLending, Fine
+Catalog (search by title/author/subject)
+```
 
-## 10. 2-minute interview answer
-[The deep-dive version to lead the conversation.]
+## 6. Library System — Key Interactions
+- Member searches catalog → reserves book → librarian checks out → return → fine calculation.
 
-## 11. Follow-ups
-[What will the interviewer ask next based on your 2-minute answer?]
+## 7. Elevator System — Entities
+```
+ElevatorSystem, Elevator (currentFloor, state, direction)
+ElevatorButton, HallButton (floor, direction)
+ElevatorPanel (buttons inside elevator)
+Request (floor, direction)
+Dispatcher (scheduling algorithm: SCAN/LOOK)
+```
 
-## 12. Deeper questions
-[Hard theoretical questions for strong candidates.]
+## 8. Hotel Booking System — Entities
+Room, RoomType, Booking, Guest, Hotel, Payment, Invoice.
+Key: room availability check with date ranges.
 
-## 13. Related concepts
-[How does this connect to ML or other DSA concepts?]
+## 9. Chess Game — Entities
+Board (8×8), Piece (subclasses: King, Queen, Rook, Bishop, Knight, Pawn),
+Player, Move, GameController.
+```python
+class Piece(ABC):
+    @abstractmethod
+    def get_valid_moves(self, board) -> list[Move]: ...
+```
 
-## 14. When it breaks / Edge cases
-[When does this approach fail?]
+## 10. ATM — Entities
+ATM, Card, Account, Transaction, CashDispenser, ReceiptPrinter,
+Keypad, Screen, BankServer.
+State machine: idle → card inserted → pin entered → transaction → eject.
 
-## 15. Comparison with alternative approaches
-[Trade-offs against similar structures/algorithms.]
+## 11. Class Diagram Tips
+- Use UML notation: `+` public, `-` private, `#` protected
+- Arrows: inheritance (△), composition (◆), aggregation (◇), association (→)
+- Show multiplicities: 1..*, 0..1
 
----
-*Where this shows up in ML:* 
-[Brief connection to AI/ML context]
+## 12. Handling Concurrency
+- Parking Lot: lock spot before assigning to avoid double booking.
+- Use optimistic locking (version field) for DB-backed designs.
+- Python: `threading.Lock()` or database transactions.
+
+## 13. Extensibility Hooks
+- Use Strategy pattern for variable parts (pricing strategy, scheduling algorithm).
+- Use Factory for object creation (VehicleFactory, SpotFactory).
+
+## 14. Common Interview Mistakes
+- Jumping to code without clarifying requirements.
+- Missing edge cases: vehicle type mismatch, full lot, expired reservation.
+- Making everything static/global.
+
+## 15. Practice Problems Ranked by Frequency
+1. Parking Lot ★★★★★
+2. LRU Cache ★★★★★
+3. Library System ★★★★
+4. Elevator ★★★★
+5. Chess/Snake&Ladder ★★★
+6. ATM ★★★
+7. Hotel Booking ★★★

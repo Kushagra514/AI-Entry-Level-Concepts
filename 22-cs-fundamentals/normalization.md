@@ -1,53 +1,91 @@
 # Database Normalization
 
-## 1. Definition
-[Define the concept strictly and accurately in one or two sentences.]
+## 1. Purpose
+Eliminate data redundancy and anomalies (insert, update, delete anomalies).
+Each normal form eliminates a specific type of dependency.
 
-## 2. Intuition
-[Explain it as if to a peer, using an analogy or simple mental model.]
+## 2. Functional Dependency
+A → B: knowing A uniquely determines B.
+Example: StudentID → StudentName, StudentID → DOB.
 
-## 3. Why it exists
-[What historical or practical problem did this solve? What was broken before?]
-
-## 4. Mechanics
-[How does it work under the hood? Step-by-step breakdown.]
-
-## 5. Complexity (Time & Space)
-- **Time Complexity:** [Justified analysis]
-- **Space Complexity:** [Justified analysis]
-
-## 6. Tiny worked example
-[A minimal numerical or trace example.]
-
-## 7. Code (Python, with type hints)
-```python
-# Provide clean, typed, idiomatic code
+## 3. First Normal Form (1NF)
+Rules: atomic values (no repeating groups, no arrays), each row unique.
+```
+Violation: courses = "Math, Physics, CS"   (multi-valued)
+Fix: separate Courses table with one row per course.
 ```
 
-## 8. Common mistakes
-[What do candidates usually get wrong when implementing or explaining this?]
+## 4. Second Normal Form (2NF)
+Must be in 1NF + no partial dependency (non-key attribute depends on PART of composite PK).
+```
+Table: (StudentID, CourseID) → Grade, StudentName
+Violation: StudentName depends only on StudentID (partial dependency)
+Fix: split into Student(StudentID, StudentName) + Enrollment(StudentID, CourseID, Grade)
+```
 
-## 9. 30-second interview answer
-[The elevator pitch version for a quick question.]
+## 5. Third Normal Form (3NF)
+Must be in 2NF + no transitive dependency (non-key → non-key).
+```
+Table: EmployeeID → DeptID → DeptName
+Violation: DeptName transitively depends on EmployeeID via DeptID
+Fix: Department(DeptID, DeptName) + Employee(EmployeeID, DeptID)
+```
 
-## 10. 2-minute interview answer
-[The deep-dive version to lead the conversation.]
+## 6. Boyce-Codd Normal Form (BCNF)
+Stricter than 3NF. For every functional dependency X → Y, X must be a superkey.
+Handles anomalies 3NF misses with overlapping candidate keys.
 
-## 11. Follow-ups
-[What will the interviewer ask next based on your 2-minute answer?]
+## 7. 3NF vs BCNF
+```
+Course (Student, Subject, Teacher)
+FDs: {Student,Subject}→Teacher; Teacher→Subject
+3NF: satisfied (Teacher is candidate key for Subject)
+BCNF: violated (Teacher→Subject but Teacher is not a superkey of the whole table)
+```
 
-## 12. Deeper questions
-[Hard theoretical questions for strong candidates.]
+## 8. 4NF — Multi-Valued Dependencies
+Eliminate multi-valued dependencies. Rare in practice.
 
-## 13. Related concepts
-[How does this connect to ML or other DSA concepts?]
+## 9. Anomalies Eliminated by Normalization
+- **Insert anomaly**: can't add data without inserting other unrelated data.
+- **Update anomaly**: same fact stored multiple times; inconsistent update.
+- **Delete anomaly**: deleting one fact accidentally deletes another.
 
-## 14. When it breaks / Edge cases
-[When does this approach fail?]
+## 10. Denormalization
+Intentional introduction of redundancy for performance (reduce JOINs).
+```sql
+-- Normalized: need JOIN orders + users to get user email
+-- Denormalized: store user_email directly in orders table
+```
+Use when: read-heavy, analytical queries, JOINs are bottleneck.
 
-## 15. Comparison with alternative approaches
-[Trade-offs against similar structures/algorithms.]
+## 11. Normalization in Practice
+Most production databases aim for 3NF. BCNF and beyond are theoretical; full normalization may hurt performance.
 
----
-*Where this shows up in ML:* 
-[Brief connection to AI/ML context]
+## 12. Example — Full Normalization
+```
+Raw: (OrderID, CustomerName, CustomerCity, ProductName, Quantity, Price)
+1NF: atomic values ✓ (already)
+2NF: no partial deps → Customer(CustID, Name, City), Product(ProdID, Name, Price), Order(OrderID, CustID), OrderItem(OrderID, ProdID, Qty)
+3NF: no transitive deps → already satisfied above
+```
+
+## 13. Star Schema vs Normalization
+Data warehouses use star schema (denormalized): fact table + dimension tables.
+Optimized for analytical queries, not OLTP.
+
+## 14. Normalization Decision Guide
+| Situation | Approach |
+|-----------|----------|
+| OLTP (transactions, writes) | Normalize to 3NF |
+| OLAP (analytics, reads) | Denormalize / star schema |
+| Read-heavy with known query patterns | Denormalize with indexes |
+| Storage is a concern | Normalize |
+
+## 15. Interview Quick Reference
+| Form | Eliminates |
+|------|-----------|
+| 1NF | Non-atomic values, duplicate rows |
+| 2NF | Partial dependencies on composite PK |
+| 3NF | Transitive dependencies |
+| BCNF | All non-trivial FDs must have superkey as determinant |

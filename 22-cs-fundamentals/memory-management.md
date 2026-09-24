@@ -1,53 +1,120 @@
 # Memory Management
 
-## 1. Definition
-[Define the concept strictly and accurately in one or two sentences.]
-
-## 2. Intuition
-[Explain it as if to a peer, using an analogy or simple mental model.]
-
-## 3. Why it exists
-[What historical or practical problem did this solve? What was broken before?]
-
-## 4. Mechanics
-[How does it work under the hood? Step-by-step breakdown.]
-
-## 5. Complexity (Time & Space)
-- **Time Complexity:** [Justified analysis]
-- **Space Complexity:** [Justified analysis]
-
-## 6. Tiny worked example
-[A minimal numerical or trace example.]
-
-## 7. Code (Python, with type hints)
-```python
-# Provide clean, typed, idiomatic code
+## 1. Memory Layout of a Process
+```
+High address
+┌───────────────┐
+│  Stack        │ ← grows downward (function calls, local vars)
+├───────────────┤
+│  ↓         ↑  │
+│  Heap         │ ← grows upward (dynamic allocation)
+├───────────────┤
+│  BSS          │ ← uninitialized globals
+├───────────────┤
+│  Data         │ ← initialized globals
+├───────────────┤
+│  Text (Code)  │ ← read-only
+Low address
 ```
 
-## 8. Common mistakes
-[What do candidates usually get wrong when implementing or explaining this?]
+## 2. Stack
+- Automatic allocation/deallocation (LIFO).
+- Fixed size (typically 1–8 MB).
+- Stack overflow: infinite recursion, huge local arrays.
+- Fast: just move stack pointer.
 
-## 9. 30-second interview answer
-[The elevator pitch version for a quick question.]
+## 3. Heap
+- Manual (C: malloc/free) or GC-managed (Python, Java).
+- Slower: needs allocator to find free block.
+- Fragmentation: internal (wasted inside allocated block) and external (free blocks scattered).
 
-## 10. 2-minute interview answer
-[The deep-dive version to lead the conversation.]
+## 4. Garbage Collection Strategies
+| Strategy | How | Used By |
+|----------|-----|---------|
+| Reference counting | Count references, free at 0 | Python (primary), Swift |
+| Mark-and-sweep | Mark reachable, sweep rest | Python (cycles), Go |
+| Generational GC | Separate young/old objects | Java, Python |
+| Tracing GC | Trace from roots | JVM, V8 |
 
-## 11. Follow-ups
-[What will the interviewer ask next based on your 2-minute answer?]
+## 5. Python's Reference Counting
+```python
+import sys
+a = [1, 2, 3]
+print(sys.getrefcount(a))  # 2 (a + getrefcount arg)
+b = a
+print(sys.getrefcount(a))  # 3
+del b
+# refcount drops; if 0, memory freed immediately
+```
 
-## 12. Deeper questions
-[Hard theoretical questions for strong candidates.]
+## 6. Cyclic Reference Problem
+```python
+a = []
+a.append(a)   # a refers to itself; refcount never reaches 0
+# Python's cyclic GC (gc module) handles this
+```
 
-## 13. Related concepts
-[How does this connect to ML or other DSA concepts?]
+## 7. Python's gc Module
+```python
+import gc
+gc.collect()          # manually trigger cycle collection
+gc.disable()          # disable automatic GC (for performance-critical sections)
+gc.get_count()        # (gen0, gen1, gen2) counts
+```
+Generational: objects that survive GC are promoted to older generations.
 
-## 14. When it breaks / Edge cases
-[When does this approach fail?]
+## 8. Memory Leaks
+Causes: forgotten references, event listeners not removed, circular references without GC, caches that grow unbounded.
+```python
+# Common Python leak: class-level mutable default
+class Foo:
+    items = []   # shared across ALL instances!
+    def add(self, x): self.items.append(x)  # leaks
+```
 
-## 15. Comparison with alternative approaches
-[Trade-offs against similar structures/algorithms.]
+## 9. Memory Profiling in Python
+```python
+# memory_profiler
+from memory_profiler import profile
+@profile
+def my_func(): ...
 
----
-*Where this shows up in ML:* 
-[Brief connection to AI/ML context]
+# tracemalloc
+import tracemalloc
+tracemalloc.start()
+# ... code ...
+snapshot = tracemalloc.take_snapshot()
+for stat in snapshot.statistics('lineno')[:5]: print(stat)
+```
+
+## 10. Stack vs Heap — Python Specifics
+Everything in Python is a heap object (even integers). Stack only holds frame pointers and local variable references.
+`sys.setrecursionlimit(n)` controls Python stack depth (default 1000).
+
+## 11. Virtual Memory
+OS gives each process an illusion of large contiguous address space.
+Pages (4KB) swapped between RAM and disk. Page fault → OS loads page from disk (slow!).
+
+## 12. Memory Allocators
+CPython uses its own allocator on top of malloc: PyMalloc for objects <512 bytes (pool-based, reduces fragmentation).
+
+## 13. WeakRef — Avoid Cycles
+```python
+import weakref
+class Node:
+    def __init__(self): self.parent = None
+node = Node()
+ref = weakref.ref(node)   # doesn't increase refcount
+```
+
+## 14. Common Interview Questions
+- What is a memory leak? How do you find it in Python?
+- Explain stack overflow vs heap overflow.
+- How does Python's GC work?
+- Why is reference counting insufficient alone?
+
+## 15. Key Facts
+- Stack: fast, LIFO, size-limited, automatic.
+- Heap: flexible, GC or manual, can fragment.
+- Python: refcounting + cyclic GC + generational collection.
+- `del x` doesn't guarantee memory freed — only decrements refcount.
