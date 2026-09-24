@@ -1,111 +1,77 @@
 # DP on Trees
 
-## 1. Core Idea
-Post-order DFS: compute child subtree answers first, then combine at parent.
-State: dp[node] = some optimal value for the subtree rooted at node.
+## 1. Definition
+DP on Trees (or Tree DP) is a pattern where dynamic programming is performed over the nodes of a tree structure, typically using a post-order Depth First Search (DFS) where a node's state depends on the computed states of its children.
 
-## 2. Template
-```python
-def dfs(node, parent):
-    result = base_case
-    for child in graph[node]:
-        if child == parent: continue
-        child_val = dfs(child, node)
-        result = combine(result, child_val)
-    return result
-```
+## 2. Intuition
+To know the optimal answer for a subtree rooted at node $U$, you first need the optimal answers for all subtrees rooted at $U$'s children. You gather the answers from the children, combine them with $U$'s own value, and return the result to $U$'s parent.
 
-## 3. Tree Diameter (LC 543)
-At each node, diameter passing through it = left_depth + right_depth.
-```python
-def diameterOfBinaryTree(root):
-    ans = [0]
-    def depth(node):
-        if not node: return 0
-        L, R = depth(node.left), depth(node.right)
-        ans[0] = max(ans[0], L + R)
-        return 1 + max(L, R)
-    depth(root)
-    return ans[0]
-```
+## 3. Why it exists
+Trees inherently possess overlapping subproblems and optimal substructure. Many tree problems (like finding the largest independent set, or the maximum path sum) can be solved by deciding whether to include a node based on the optimal decisions made in its subtrees.
 
-## 4. Max Path Sum (LC 124)
-Path can start/end anywhere. At each node, gain = node.val + max(0,left) + max(0,right).
-```python
-def maxPathSum(root):
-    best = [float('-inf')]
-    def dp(node):
-        if not node: return 0
-        l = max(dp(node.left), 0)
-        r = max(dp(node.right), 0)
-        best[0] = max(best[0], node.val + l + r)
-        return node.val + max(l, r)   # only one branch for parent
-    dp(root)
-    return best[0]
-```
+## 4. Mechanics
+- **Traversal:** Post-order DFS. Process children first, then the parent.
+- **State:** Usually `dp[u]` or `dp[u][state]`. For example, in "House Robber III", state is `(include_node, exclude_node)`.
+- **Transitions:** At node `u`, iterate through its children `v`. `dp[u]` is updated using `dp[v]`.
+- **Rerooting:** A more advanced technique to find the answer for *every* node as the root in $O(N)$ time. Do one bottom-up pass, then one top-down pass to pass the parent's contribution down.
 
-## 5. House Robber III (LC 337)
-State: (rob_root, skip_root). Can't rob adjacent nodes.
+## 5. Complexity (Time & Space)
+- **Time:** $O(N)$ because every node and edge is visited a constant number of times.
+- **Space:** $O(N)$ for the recursion stack and the DP array.
+
+## 6. Tiny worked example
+Tree Diameter (longest path). For a node $U$, the longest path passing through $U$ is `highest_child_depth + second_highest_child_depth`.
+DFS returns the max depth of a subtree. As we compute this, we update a global `max_diameter` variable.
+
+## 7. Code (Python)
 ```python
+# House Robber III (Max independent set weight in a tree)
 def rob(root):
-    def dp(node):
-        if not node: return (0, 0)  # (rob, skip)
-        lr, ls = dp(node.left)
-        rr, rs = dp(node.right)
-        rob_cur = node.val + ls + rs
-        skip_cur = max(lr, ls) + max(rr, rs)
-        return (rob_cur, skip_cur)
-    return max(dp(root))
+    # Returns (max_if_robbed, max_if_not_robbed)
+    def dfs(node):
+        if not node:
+            return (0, 0)
+            
+        left_rob, left_not = dfs(node.left)
+        right_rob, right_not = dfs(node.right)
+        
+        # If we rob this node, we CANNOT rob its children
+        rob_this = node.val + left_not + right_not
+        
+        # If we don't rob this node, we take the max of children (robbed or not)
+        not_rob_this = max(left_rob, left_not) + max(right_rob, right_not)
+        
+        return (rob_this, not_rob_this)
+        
+    return max(dfs(root))
 ```
 
-## 6. Binary Tree Cameras (LC 968)
-State per node: 0=needs cover, 1=has camera, 2=covered no camera.
+## 8. Common mistakes
+- Passing states *down* the tree instead of passing results *up*. Top-down DP with memoization works, but bottom-up (returning tuples from DFS) is usually much cleaner.
+- Modifying a global maximum incorrectly (e.g., forgetting that a path can go up through the parent and back down).
 
-## 7. Rerooting Technique
-Compute dp[root] in O(N), then re-root answers for all nodes in second DFS pass.
-Useful when answer for each node as root is needed.
+## 9. 30-second interview answer
+"DP on Trees solves problems by computing optimal states for subtrees. It uses a post-order DFS where a parent node's DP state is calculated by aggregating the DP states returned by its children. It is highly efficient, running in $O(N)$ time, and is used for problems like Tree Diameter or Maximum Path Sum."
 
-## 8. DP on General Trees (N-ary)
-```python
-def tree_dp(node, par, graph, vals):
-    dp = [0] * 2   # dp[0]=skip, dp[1]=take
-    dp[1] = vals[node]
-    for child in graph[node]:
-        if child == par:
-            continue
-        c = tree_dp(child, node, graph, vals)
-        dp[0] += max(c)
-        dp[1] += c[0]   # if we take node, children must be skipped
-    return dp
-```
+## 10. 2-minute interview answer
+"Tree DP leverages the strict hierarchical structure of trees. Because there are no cycles, the subproblems are neatly isolated into subtrees. The standard pattern is a post-order DFS: we recursively call the DFS on a node's children, and the children return their optimal states. The parent node then combines these states to form its own optimal state. For example, in calculating the Maximum Path Sum, a node needs to know the maximum straight path down into its left and right subtrees. It combines them to see if the path arching over itself is the global maximum, but only returns the maximum single straight path up to its own parent. A more complex variant is 'Rerooting DP', used when you need to compute an answer for every node acting as the root. Instead of running an $O(N)$ DFS for every node (which is $O(N^2)$), we do it in two $O(N)$ passes: one bottom-up to get subtree answers, and one top-down to pass the remaining graph's answer from parent to child."
 
-## 9. Counting Paths / Subtree Sizes
-sz[u] = 1 + sum(sz[child]). Used in centroid decomposition, LCA preprocessing.
+## 11. Follow-ups
+- "What if the tree is an n-ary tree?" (The logic is identical. Instead of `left` and `right`, you iterate over the `children` array and accumulate the results).
 
-## 10. Lowest Common Ancestor (Binary Lifting)
-Precompute anc[node][j] = 2^j-th ancestor. dp[node][j] = dp[dp[node][j-1]][j-1].
+## 12. Deeper questions
+- "Explain the two passes of Rerooting DP." (Pass 1 (bottom-up): Compute the DP state for the subtree of every node assuming an arbitrary root, say 0. Pass 2 (top-down): To find the answer for node `v` when rooted at `v`, take the answer for its parent `u` (when rooted at `u`), subtract `v`'s subtree contribution to `u`, and add this remaining tree contribution to `v`'s state).
 
-## 11. DP on Tree + Knapsack
-"Select k nodes from subtree" — dp[node][k] = max value with k nodes chosen.
-Time: O(N²) with careful merging.
+## 13. Related concepts
+- **Graph DFS**: Tree DP is essentially post-order DFS with state combination.
+- **State Machine DP**: Nodes often have multiple states (robbed/not robbed).
 
-## 12. Interview Pattern
-- Identify: what info does parent need from child?
-- Return tuple from DFS when multiple states needed.
-- Track global answer in a nonlocal/list variable.
+## 14. When it breaks / Edge cases
+- Unusually deep trees (like a linked list) will cause recursion depth limit errors (`RecursionError` in Python). May need to increase recursion limit or use an explicit stack.
 
-## 13. Common Mistakes
-- Forgetting to block parent edge in undirected tree DFS.
-- Returning wrong value up the recursion (confusing subtree answer vs path answer).
+## 15. Comparison with alternative approaches
+- **Tree DP vs Graph DP:** Trees are Directed Acyclic Graphs (if directed away from root). Tree DP doesn't need a `visited` set if you just pass the `parent` to avoid traversing backward.
 
-## 14. Complexity
-O(N) time and space for most tree DP (single pass DFS).
-
-## 15. Key Problems List
-| Problem | State |
-|---------|-------|
-| Diameter | depth from each node |
-| Max Path Sum | max one-sided gain |
-| House Robber III | (rob, skip) pair |
-| Tree Cameras | 3-state coverage |
-| Max Independent Set | (include, exclude) |
+---
+*Where this shows up in ML:*
+Belief propagation in tree-structured probabilistic graphical models.
