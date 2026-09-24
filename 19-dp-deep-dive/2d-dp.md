@@ -1,115 +1,76 @@
-# 2D DP
+# 2D Dynamic Programming
 
-## 1. Core Idea
-State depends on two variables — often two sequences, two indices, or grid position.
-dp[i][j] derived from dp[i-1][j], dp[i][j-1], dp[i-1][j-1].
+## 1. Definition
+2D Dynamic Programming solves problems by maintaining a 2D state matrix, usually `dp[i][j]`. It is heavily used when the state depends on two variables: two strings (e.g., Edit Distance), a grid (e.g., Unique Paths), or an item index and a capacity (e.g., Knapsack).
 
-## 2. Unique Paths (LC 62)
+## 2. Intuition
+If you are navigating a grid from top-left to bottom-right, the number of ways to reach cell `(i, j)` depends entirely on the ways to reach the cell directly above `(i-1, j)` and directly to the left `(i, j-1)`. You sum them. By building a 2D table, you solve the maze step by step.
+
+## 3. Why it exists
+Many problems have optimal substructure defined by two independent axes. 1D DP cannot capture the relationship (e.g., comparing string A to string B requires tracking positions in both strings). 
+
+## 4. Mechanics
+- **Grid Traversal:** `dp[i][j] = dp[i-1][j] + dp[i][j-1]`.
+- **String Matching:** `dp[i][j]` depends on `dp[i-1][j-1]` (if characters match) or `max(dp[i-1][j], dp[i][j-1])` (if they don't, e.g., Longest Common Subsequence).
+- **0/1 Knapsack:** `dp[i][w]` depends on `dp[i-1][w]` (exclude item) and `dp[i-1][w-weight[i]] + value[i]` (include item).
+
+## 5. Complexity (Time & Space)
+- **Time:** $O(M \times N)$ to fill the $M \times N$ matrix.
+- **Space:** $O(M \times N)$ naively. Can often be optimized to $O(\min(M, N))$ by noticing that row `i` only depends on row `i-1`.
+
+## 6. Tiny worked example
+Grid Paths. 2x2 Grid. Top-left is 1.
+`dp = [[1, 1], [1, 0]]` (initialized row 0 and col 0 to 1).
+`dp[1][1] = dp[0][1] + dp[1][0] = 1 + 1 = 2`.
+2 paths to the bottom-right.
+
+## 7. Code (Python)
 ```python
-def uniquePaths(m, n):
-    dp = [[1]*n for _ in range(m)]
-    for i in range(1, m):
-        for j in range(1, n):
-            dp[i][j] = dp[i-1][j] + dp[i][j-1]
-    return dp[m-1][n-1]
-# Space O(n): dp = [1]*n; for i in 1..m: for j in 1..n: dp[j] += dp[j-1]
+# Unique Paths with Obstacles
+def uniquePathsWithObstacles(obstacleGrid):
+    M, N = len(obstacleGrid), len(obstacleGrid[0])
+    if obstacleGrid[0][0] == 1: return 0
+    
+    dp = [[0]*N for _ in range(M)]
+    dp[0][0] = 1
+    
+    for i in range(M):
+        for j in range(N):
+            if obstacleGrid[i][j] == 1:
+                dp[i][j] = 0
+                continue
+            if i > 0: dp[i][j] += dp[i-1][j]
+            if j > 0: dp[i][j] += dp[i][j-1]
+            
+    return dp[M-1][N-1]
 ```
 
-## 3. Min Path Sum (LC 64)
-```python
-def minPathSum(grid):
-    m, n = len(grid), len(grid[0])
-    dp = [row[:] for row in grid]
-    for i in range(1, m): dp[i][0] += dp[i-1][0]
-    for j in range(1, n): dp[0][j] += dp[0][j-1]
-    for i in range(1, m):
-        for j in range(1, n):
-            dp[i][j] += min(dp[i-1][j], dp[i][j-1])
-    return dp[m-1][n-1]
-```
+## 8. Common mistakes
+- **Initialization errors:** Forgetting to properly initialize the first row and first column. E.g., in a grid with an obstacle in the first row, all cells *after* the obstacle in that row must be 0, not 1.
+- **Index out of bounds:** Not handling `i-1` and `j-1` for the 0th row/col. Pad the array with an extra row/col of zeros to avoid `if` statements.
 
-## 4. Longest Common Subsequence (LC 1143)
-```python
-def lcs(s, t):
-    m, n = len(s), len(t)
-    dp = [[0]*(n+1) for _ in range(m+1)]
-    for i in range(1, m+1):
-        for j in range(1, n+1):
-            if s[i-1] == t[j-1]:
-                dp[i][j] = dp[i-1][j-1] + 1
-            else:
-                dp[i][j] = max(dp[i-1][j], dp[i][j-1])
-    return dp[m][n]
-```
+## 9. 30-second interview answer
+"2D DP is used when a problem's state relies on two dimensions, such as tracking two strings in Edit Distance or navigating a grid. We construct an $O(M \times N)$ table where `dp[i][j]` is calculated using adjacent cells like `dp[i-1][j]` and `dp[i][j-1]`. Space complexity can usually be optimized to $O(N)$ by only storing the previous row."
 
-## 5. Edit Distance (LC 72)
-```python
-def editDistance(s, t):
-    m, n = len(s), len(t)
-    dp = [[0]*(n+1) for _ in range(m+1)]
-    for i in range(m+1): dp[i][0] = i
-    for j in range(n+1): dp[0][j] = j
-    for i in range(1, m+1):
-        for j in range(1, n+1):
-            if s[i-1] == t[j-1]:
-                dp[i][j] = dp[i-1][j-1]
-            else:
-                dp[i][j] = 1 + min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
-    return dp[m][n]
-```
+## 10. 2-minute interview answer
+"2D Dynamic Programming is a vast category encompassing grid traversal, string comparison, and 0/1 knapsack problems. The core concept is that the optimal solution requires tracking two independent variables. For example, in Longest Common Subsequence, `dp[i][j]` represents the LCS of string1 up to index `i` and string2 up to index `j`. If the characters match, the state transitions from `dp[i-1][j-1]`. If not, it transitions from the max of `dp[i-1][j]` or `dp[i][j-1]`. Because we fill an $M \times N$ matrix, the time complexity is strictly $O(M \times N)$. However, a crucial realization for system design and space-constrained environments is that row `i` almost always depends *only* on row `i-1`. By keeping only two 1D arrays (the 'current' row and 'previous' row) instead of the full matrix, we reduce space complexity from $O(M \times N)$ to $O(N)$. This space optimization is a standard interview follow-up."
 
-## 6. Longest Common Substring
-dp[i][j] = length of common substring ending at s[i-1], t[j-1].
-```python
-if s[i-1]==t[j-1]: dp[i][j] = dp[i-1][j-1]+1
-else: dp[i][j] = 0
-```
+## 11. Follow-ups
+- "Can you optimize the space to $O(N)$?" (Yes, by realizing `dp[i][j]` only needs `dp[i-1][...]`. Maintain `prev_row` and `curr_row`).
 
-## 7. Distinct Subsequences (LC 115)
-dp[i][j] = # ways s[0..i-1] contains t[0..j-1] as subseq.
-```python
-dp[i][j] = dp[i-1][j] + (dp[i-1][j-1] if s[i-1]==t[j-1] else 0)
-```
+## 12. Deeper questions
+- "How do you recover the actual path/string (e.g., the exact LCS)?" (You cannot space-optimize to $O(N)$. You must keep the full $M \times N$ matrix and backtrack from `dp[M][N]`, moving to the cell that provided the optimal value at each step).
 
-## 8. Maximal Square (LC 221)
-dp[i][j] = side length of largest square with bottom-right at (i,j).
-```python
-dp[i][j] = min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]) + 1  # if grid[i][j]=='1'
-```
+## 13. Related concepts
+- **1D DP**: The simpler version.
+- **Backtracking**: Finding the path after the DP table is filled.
 
-## 9. Dungeon Game (LC 174)
-Work backwards: dp[i][j] = min health needed entering cell (i,j).
+## 14. When it breaks / Edge cases
+- Grids with cycles (e.g., you can move up, down, left, right). You cannot use standard 2D DP; you must use Dijkstra's or BFS because the strict topological ordering of DP is broken.
 
-## 10. Space Optimization Pattern
-When dp[i][j] depends only on row i-1: use two 1D arrays (prev, curr) or in-place rolling.
-LCS and Edit Distance can both be reduced to O(min(M,N)) space.
+## 15. Comparison with alternative approaches
+- **Top-Down (Memoization) vs Bottom-Up (Tabulation):** Top-down is easier to write for complex string problems and computes only necessary states. Bottom-up is faster (no recursion overhead) and easier to space-optimize.
 
-## 11. Knapsack as 2D DP
-dp[i][w] = max value using first i items with capacity w.
-```python
-for i in range(1, n+1):
-    for w in range(W+1):
-        dp[i][w] = dp[i-1][w]
-        if weights[i-1] <= w:
-            dp[i][w] = max(dp[i][w], dp[i-1][w-weights[i-1]] + values[i-1])
-```
-
-## 12. Interleaving String (LC 97)
-dp[i][j] = s3[0..i+j-1] is interleaving of s1[0..i-1] and s2[0..j-1].
-
-## 13. Interview Tips
-- Always draw the table and fill a 3×3 example by hand.
-- Confirm base cases for i=0 and j=0 rows.
-- Ask if space optimization is needed.
-
-## 14. Common Mistakes
-- Mixing 0-indexed dp with 1-indexed strings.
-- Wrong initialization of boundary rows/columns.
-
-## 15. Complexity Reference
-| Problem | Time | Space (optimized) |
-|---------|------|-------------------|
-| Unique Paths | O(M·N) | O(N) |
-| LCS | O(M·N) | O(N) |
-| Edit Distance | O(M·N) | O(N) |
-| Knapsack 0/1 | O(N·W) | O(W) |
+---
+*Where this shows up in ML:*
+Dynamic Time Warping (DTW) for speech recognition and time-series alignment is exactly a 2D DP algorithm on a grid.
